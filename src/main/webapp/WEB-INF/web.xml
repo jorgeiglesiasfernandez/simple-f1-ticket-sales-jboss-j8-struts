@@ -43,16 +43,6 @@
         <url-pattern>/purchase/*</url-pattern>
     </filter-mapping>
 
-    <!-- Servlet JAX-RS para la API REST -->
-    <servlet>
-        <servlet-name>javax.ws.rs.core.Application</servlet-name>
-    </servlet>
-    
-    <servlet-mapping>
-        <servlet-name>javax.ws.rs.core.Application</servlet-name>
-        <url-pattern>/api/*</url-pattern>
-    </servlet-mapping>
-
     <!-- Configuración de sesión (30 minutos) -->
     <session-config>
         <session-timeout>30</session-timeout>
