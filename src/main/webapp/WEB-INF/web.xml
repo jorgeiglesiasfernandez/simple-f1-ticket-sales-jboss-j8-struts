@@ -20,8 +20,38 @@
 
     <filter-mapping>
         <filter-name>struts2</filter-name>
-        <url-pattern>/*</url-pattern>
+        <url-pattern>*.action</url-pattern>
     </filter-mapping>
+    
+    <filter-mapping>
+        <filter-name>struts2</filter-name>
+        <url-pattern>/dashboard</url-pattern>
+    </filter-mapping>
+    
+    <filter-mapping>
+        <filter-name>struts2</filter-name>
+        <url-pattern>/event/*</url-pattern>
+    </filter-mapping>
+    
+    <filter-mapping>
+        <filter-name>struts2</filter-name>
+        <url-pattern>/ticket/*</url-pattern>
+    </filter-mapping>
+    
+    <filter-mapping>
+        <filter-name>struts2</filter-name>
+        <url-pattern>/purchase/*</url-pattern>
+    </filter-mapping>
+
+    <!-- Servlet JAX-RS para la API REST -->
+    <servlet>
+        <servlet-name>javax.ws.rs.core.Application</servlet-name>
+    </servlet>
+    
+    <servlet-mapping>
+        <servlet-name>javax.ws.rs.core.Application</servlet-name>
+        <url-pattern>/api/*</url-pattern>
+    </servlet-mapping>
 
     <!-- Configuración de sesión (30 minutos) -->
     <session-config>
