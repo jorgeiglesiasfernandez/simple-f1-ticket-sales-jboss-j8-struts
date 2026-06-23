@@ -218,7 +218,7 @@
     
     <footer>
         <p>&copy; 2026 Gran Premio de España - Sistema de Venta de Entradas F1</p>
-        <p style="margin-top: 10px; font-size: 0.9em; color: #999;">Made with Bob</p>
+        <p style="margin-top: 10px; font-size: 0.9em; color: x#999;">API version</p>
     </footer>
 </body>
 </html>
