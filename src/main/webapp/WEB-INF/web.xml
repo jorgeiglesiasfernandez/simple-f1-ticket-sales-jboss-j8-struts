@@ -20,27 +20,9 @@
 
     <filter-mapping>
         <filter-name>struts2</filter-name>
-        <url-pattern>*.action</url-pattern>
-    </filter-mapping>
-    
-    <filter-mapping>
-        <filter-name>struts2</filter-name>
-        <url-pattern>/dashboard</url-pattern>
-    </filter-mapping>
-    
-    <filter-mapping>
-        <filter-name>struts2</filter-name>
-        <url-pattern>/event/*</url-pattern>
-    </filter-mapping>
-    
-    <filter-mapping>
-        <filter-name>struts2</filter-name>
-        <url-pattern>/ticket/*</url-pattern>
-    </filter-mapping>
-    
-    <filter-mapping>
-        <filter-name>struts2</filter-name>
-        <url-pattern>/purchase/*</url-pattern>
+        <url-pattern>/*</url-pattern>
+        <dispatcher>REQUEST</dispatcher>
+        <dispatcher>FORWARD</dispatcher>
     </filter-mapping>
 
     <!-- Configuración de sesión (30 minutos) -->

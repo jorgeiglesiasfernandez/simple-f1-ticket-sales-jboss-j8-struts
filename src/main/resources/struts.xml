@@ -9,6 +9,9 @@
     <constant name="struts.ui.theme" value="simple" />
     <constant name="struts.convention.result.path" value="/WEB-INF/content/" />
     
+    <!-- Excluir rutas de la API REST del procesamiento de Struts -->
+    <constant name="struts.action.excludePattern" value="/api/.*" />
+    
     <package name="f1tickets" extends="struts-default">
         
         <!-- Dashboard Actions -->
