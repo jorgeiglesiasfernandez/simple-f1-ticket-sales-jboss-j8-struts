@@ -328,7 +328,7 @@
         
         <div class="button-group">
             <button onclick="window.print()" class="btn btn-primary">🖨️ Imprimir Confirmación</button>
-            <a href="<s:url action='index'/>" class="btn btn-secondary">🏠 Volver al Inicio</a>
+            <a href="${pageContext.request.contextPath}/" class="btn btn-secondary">🏠 Volver al Inicio</a>
             <a href="<s:url action='purchase-form'/>" class="btn btn-secondary">🎫 Comprar Más Entradas</a>
         </div>
     </div>

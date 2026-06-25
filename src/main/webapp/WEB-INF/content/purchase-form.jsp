@@ -313,7 +313,7 @@
             
             <div class="button-group">
                 <s:submit value="🛒 Confirmar Compra" cssClass="btn btn-primary"/>
-                <a href="<s:url action='index'/>" class="btn btn-secondary">❌ Cancelar</a>
+                <a href="${pageContext.request.contextPath}/" class="btn btn-secondary">❌ Cancelar</a>
             </div>
         </s:form>
     </div>
