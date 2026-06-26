@@ -2,15 +2,27 @@
 set -e
 
 echo "Iniciando MySQL..."
-# Asegurar permisos correctos (solo si se ejecuta como root)
+
+# Verificar y corregir permisos del datadir
+echo "Verificando permisos de /var/lib/mysql..."
 if [ "$(id -u)" = "0" ]; then
+    # Ejecutando como root - asegurar permisos
     chown -R mysql:mysql /var/lib/mysql /var/run/mysqld 2>/dev/null || true
+    chmod -R 755 /var/lib/mysql 2>/dev/null || true
+    chmod -R 755 /var/run/mysqld 2>/dev/null || true
     
     # Iniciar MySQL como usuario mysql usando configuración de consola
     echo "Iniciando MySQL con logs en consola (compatible con OpenShift/CRC)"
     su -s /bin/bash mysql -c "mysqld --defaults-file=/etc/my.cnf.d/console.cnf" &
 else
-    # Si no es root, iniciar MySQL con configuración de consola
+    # No es root - verificar si podemos escribir en datadir
+    if [ ! -w /var/lib/mysql ]; then
+        echo "ERROR: /var/lib/mysql no tiene permisos de escritura"
+        echo "En OpenShift/CRC, asegúrate de que el SecurityContext permite escritura en el volumen"
+        echo "Intentando continuar de todos modos..."
+    fi
+    
+    # Iniciar MySQL con configuración de consola
     echo "Iniciando MySQL con logs en consola (compatible con OpenShift/CRC)"
     mysqld --defaults-file=/etc/my.cnf.d/console.cnf &
 fi
