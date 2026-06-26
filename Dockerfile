@@ -52,10 +52,10 @@ RUN cd /opt && \
     rm wildfly-${WILDFLY_VERSION}.tar.gz && \
     chown -R wildfly:wildfly /opt/wildfly
 
-# Descargar MySQL Connector/J
+# Descargar MySQL Connector/J (usar com/mysql/mysql-connector-j en lugar de mysql/mysql-connector-java)
 RUN cd /opt && \
-    wget -q https://repo1.maven.org/maven2/mysql/mysql-connector-java/8.0.33/mysql-connector-java-8.0.33.jar && \
-    chown wildfly:wildfly mysql-connector-java-8.0.33.jar
+    wget -q https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.0.33/mysql-connector-j-8.0.33.jar && \
+    chown wildfly:wildfly mysql-connector-j-8.0.33.jar
 
 # Configurar MySQL
 RUN mkdir -p /var/lib/mysql /var/run/mysqld /var/log/mysql && \
@@ -146,7 +146,7 @@ echo "WildFly iniciado, configurando datasource..."
 
 # Instalar módulo MySQL y configurar datasource
 ${WILDFLY_HOME}/bin/jboss-cli.sh --connect << EOCLI
-module add --name=com.mysql --resources=/opt/mysql-connector-java-8.0.33.jar --dependencies=javax.api,javax.transaction.api
+module add --name=com.mysql --resources=/opt/mysql-connector-j-8.0.33.jar --dependencies=javax.api,javax.transaction.api
 
 /subsystem=datasources/jdbc-driver=mysql:add(driver-name=mysql,driver-module-name=com.mysql,driver-class-name=com.mysql.cj.jdbc.Driver)
 
