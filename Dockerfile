@@ -70,6 +70,9 @@ RUN mkdir -p /var/lib/mysql /var/run/mysqld /var/log/mysql && \
 # Inicializar base de datos MySQL (MySQL 8.0 se inicializa automáticamente al primer arranque)
 RUN mysqld --initialize-insecure --user=mysql --datadir=/var/lib/mysql
 
+# Copiar configuración de MySQL para consola (sin logs a archivo)
+COPY docker-scripts/my-console.cnf /etc/my.cnf.d/console.cnf
+
 # Copiar scripts SQL
 COPY database/schema.sql /docker-entrypoint-initdb.d/01-schema.sql
 COPY database/initial-data.sql /docker-entrypoint-initdb.d/02-initial-data.sql

@@ -5,25 +5,14 @@ echo "Iniciando MySQL..."
 # Asegurar permisos correctos (solo si se ejecuta como root)
 if [ "$(id -u)" = "0" ]; then
     chown -R mysql:mysql /var/lib/mysql /var/run/mysqld 2>/dev/null || true
-    # Intentar dar permisos a log, pero continuar si falla
-    chown -R mysql:mysql /var/log/mysql 2>/dev/null || true
-    chmod 755 /var/log/mysql 2>/dev/null || true
     
-    # Iniciar MySQL como usuario mysql, con log a stdout si no puede escribir en archivo
-    if [ -w /var/log/mysql ]; then
-        su -s /bin/bash mysql -c "mysqld --datadir=/var/lib/mysql --log-error=/var/log/mysql/error.log" &
-    else
-        echo "⚠️  No se puede escribir en /var/log/mysql, usando stdout para logs"
-        su -s /bin/bash mysql -c "mysqld --datadir=/var/lib/mysql --console --log-error-verbosity=2" &
-    fi
+    # Iniciar MySQL como usuario mysql usando configuración de consola
+    echo "Iniciando MySQL con logs en consola (compatible con OpenShift/CRC)"
+    su -s /bin/bash mysql -c "mysqld --defaults-file=/etc/my.cnf.d/console.cnf" &
 else
-    # Si no es root, iniciar MySQL con log a stdout
-    if [ -w /var/log/mysql ]; then
-        mysqld --datadir=/var/lib/mysql --log-error=/var/log/mysql/error.log &
-    else
-        echo "⚠️  No se puede escribir en /var/log/mysql, usando stdout para logs"
-        mysqld --datadir=/var/lib/mysql --console --log-error-verbosity=2 &
-    fi
+    # Si no es root, iniciar MySQL con configuración de consola
+    echo "Iniciando MySQL con logs en consola (compatible con OpenShift/CRC)"
+    mysqld --defaults-file=/etc/my.cnf.d/console.cnf &
 fi
 MYSQL_PID=$!
 

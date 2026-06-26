@@ -1,0 +1,28 @@
+[mysqld]
+# Desactivar log a archivo - usar solo consola/stdout
+# Esto es necesario para entornos con permisos restringidos como OpenShift/CRC
+skip-log-error
+console
+
+# Configuración básica
+datadir=/var/lib/mysql
+socket=/var/run/mysqld/mysqld.sock
+pid-file=/var/run/mysqld/mysqld.pid
+
+# Configuración de red
+bind-address=0.0.0.0
+port=3306
+
+# Configuración de caracteres UTF-8
+character-set-server=utf8mb4
+collation-server=utf8mb4_unicode_ci
+
+# Configuración de seguridad básica
+skip-name-resolve
+
+[client]
+default-character-set=utf8mb4
+socket=/var/run/mysqld/mysqld.sock
+
+[mysql]
+default-character-set=utf8mb4
