@@ -63,7 +63,7 @@ RUN mkdir -p /var/lib/mysql /var/run/mysqld /var/log/mysql && \
     chmod 755 /var/run/mysqld
 
 # Inicializar base de datos MySQL
-RUN mysqld --initialize-insecure --user=mysql --datadir=/var/lib/mysql
+RUN mysql_install_db --user=mysql --datadir=/var/lib/mysql
 
 # Copiar scripts SQL
 COPY database/schema.sql /docker-entrypoint-initdb.d/01-schema.sql
@@ -72,154 +72,19 @@ COPY database/initial-data.sql /docker-entrypoint-initdb.d/02-initial-data.sql
 # Copiar WAR de la aplicación
 COPY target/f1-tickets.war ${WILDFLY_HOME}/standalone/deployments/
 
-# Crear script de inicialización de MySQL
-RUN cat > /opt/init-mysql.sh << 'EOF'
-#!/bin/bash
-set -e
+# Copiar scripts de configuración
+COPY docker-scripts/init-mysql.sh /opt/init-mysql.sh
+COPY docker-scripts/configure-wildfly.sh /opt/configure-wildfly.sh
+COPY docker-scripts/supervisord.conf /etc/supervisord.conf
+COPY docker-scripts/entrypoint.sh /opt/entrypoint.sh
 
-echo "Iniciando MySQL..."
-mysqld_safe --user=mysql --datadir=/var/lib/mysql &
-MYSQL_PID=$!
-
-# Esperar a que MySQL esté listo
-echo "Esperando a que MySQL esté listo..."
-for i in {30..0}; do
-    if mysqladmin ping -h localhost --silent; then
-        break
-    fi
-    echo "MySQL no está listo, esperando..."
-    sleep 2
-done
-
-if [ "$i" = 0 ]; then
-    echo "Error: MySQL no se inició correctamente"
-    exit 1
-fi
-
-echo "MySQL iniciado correctamente"
-
-# Configurar usuario root
-mysql -u root << EOSQL
-ALTER USER 'root'@'localhost' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}';
-CREATE DATABASE IF NOT EXISTS ${MYSQL_DATABASE};
-CREATE USER IF NOT EXISTS '${MYSQL_USER}'@'%' IDENTIFIED BY '${MYSQL_PASSWORD}';
-GRANT ALL PRIVILEGES ON ${MYSQL_DATABASE}.* TO '${MYSQL_USER}'@'%';
-FLUSH PRIVILEGES;
-EOSQL
-
-# Ejecutar scripts de inicialización
-echo "Ejecutando scripts de inicialización..."
-mysql -u root -p${MYSQL_ROOT_PASSWORD} ${MYSQL_DATABASE} < /docker-entrypoint-initdb.d/01-schema.sql
-mysql -u root -p${MYSQL_ROOT_PASSWORD} ${MYSQL_DATABASE} < /docker-entrypoint-initdb.d/02-initial-data.sql
-
-echo "Base de datos inicializada correctamente"
-EOF
-
-RUN chmod +x /opt/init-mysql.sh
-
-# Crear script de configuración de WildFly
-RUN cat > /opt/configure-wildfly.sh << 'EOF'
-#!/bin/bash
-set -e
-
-echo "Iniciando WildFly en modo standalone para configuración..."
-${WILDFLY_HOME}/bin/standalone.sh &
-WILDFLY_PID=$!
-
-# Esperar a que WildFly esté listo
-echo "Esperando a que WildFly esté listo..."
-for i in {60..0}; do
-    if ${WILDFLY_HOME}/bin/jboss-cli.sh --connect --command=":read-attribute(name=server-state)" 2>/dev/null | grep -q "running"; then
-        break
-    fi
-    echo "WildFly no está listo, esperando..."
-    sleep 2
-done
-
-if [ "$i" = 0 ]; then
-    echo "Error: WildFly no se inició correctamente"
-    kill $WILDFLY_PID 2>/dev/null || true
-    exit 1
-fi
-
-echo "WildFly iniciado, configurando datasource..."
-
-# Instalar módulo MySQL y configurar datasource
-${WILDFLY_HOME}/bin/jboss-cli.sh --connect << EOCLI
-module add --name=com.mysql --resources=/opt/mysql-connector-j-8.0.33.jar --dependencies=javax.api,javax.transaction.api
-
-/subsystem=datasources/jdbc-driver=mysql:add(driver-name=mysql,driver-module-name=com.mysql,driver-class-name=com.mysql.cj.jdbc.Driver)
-
-data-source add --name=F1TicketsDS --jndi-name=java:jboss/datasources/F1TicketsDS --driver-name=mysql --connection-url=jdbc:mysql://localhost:3306/${MYSQL_DATABASE}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true --user-name=${MYSQL_USER} --password=${MYSQL_PASSWORD} --use-ccm=true --max-pool-size=20 --min-pool-size=5 --enabled=true
-
-/subsystem=datasources/data-source=F1TicketsDS:test-connection-in-pool
-
-:shutdown
-EOCLI
-
-wait $WILDFLY_PID
-echo "WildFly configurado correctamente"
-EOF
-
-RUN chmod +x /opt/configure-wildfly.sh
-
-# Configurar Supervisor para gestionar múltiples procesos
-RUN cat > /etc/supervisord.conf << 'EOF'
-[supervisord]
-nodaemon=true
-user=root
-logfile=/var/log/supervisor/supervisord.log
-pidfile=/var/run/supervisord.pid
-
-[program:mysql]
-command=/usr/libexec/mysqld --user=mysql --datadir=/var/lib/mysql
-autostart=true
-autorestart=true
-priority=1
-stdout_logfile=/var/log/mysql/mysql.log
-stderr_logfile=/var/log/mysql/mysql-error.log
-
-[program:wildfly]
-command=/opt/wildfly/bin/standalone.sh -b 0.0.0.0 -bmanagement 0.0.0.0
-user=wildfly
-autostart=true
-autorestart=true
-priority=10
-stdout_logfile=/var/log/wildfly/wildfly.log
-stderr_logfile=/var/log/wildfly/wildfly-error.log
-environment=JAVA_HOME="/usr/lib/jvm/java-1.8.0-openjdk"
-EOF
+# Dar permisos de ejecución a los scripts
+RUN chmod +x /opt/init-mysql.sh /opt/configure-wildfly.sh /opt/entrypoint.sh
 
 # Crear directorios de logs
 RUN mkdir -p /var/log/supervisor /var/log/mysql /var/log/wildfly && \
     chown -R wildfly:wildfly /var/log/wildfly && \
     chown -R mysql:mysql /var/log/mysql
-
-# Script de entrada principal
-RUN cat > /opt/entrypoint.sh << 'EOF'
-#!/bin/bash
-set -e
-
-echo "=========================================="
-echo "Iniciando aplicación monolítica F1 Tickets"
-echo "WildFly 26 (JBoss EAP 7.4 compatible) + MySQL 8.0"
-echo "=========================================="
-
-# Verificar si es la primera ejecución
-if [ ! -f /var/lib/mysql/.initialized ]; then
-    echo "Primera ejecución: Inicializando MySQL..."
-    /opt/init-mysql.sh
-    touch /var/lib/mysql/.initialized
-    
-    echo "Configurando WildFly..."
-    /opt/configure-wildfly.sh
-fi
-
-echo "Iniciando servicios con Supervisor..."
-exec /usr/local/bin/supervisord -c /etc/supervisord.conf
-EOF
-
-RUN chmod +x /opt/entrypoint.sh
 
 # Exponer puertos
 # 8080: HTTP WildFly
