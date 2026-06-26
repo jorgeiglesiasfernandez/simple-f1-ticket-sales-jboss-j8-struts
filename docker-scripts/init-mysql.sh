@@ -2,7 +2,11 @@
 set -e
 
 echo "Iniciando MySQL..."
-mysqld --user=mysql --datadir=/var/lib/mysql --log-error=/var/log/mysql/error.log &
+# Asegurar permisos correctos
+chown -R mysql:mysql /var/lib/mysql /var/log/mysql /var/run/mysqld
+
+# Iniciar MySQL en background
+su -s /bin/bash mysql -c "mysqld --datadir=/var/lib/mysql --log-error=/var/log/mysql/error.log" &
 MYSQL_PID=$!
 
 # Esperar a que MySQL esté listo
