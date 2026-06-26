@@ -14,7 +14,7 @@ if [ "$(id -u)" = "0" ]; then
         su -s /bin/bash mysql -c "mysqld --datadir=/var/lib/mysql --log-error=/var/log/mysql/error.log" &
     else
         echo "⚠️  No se puede escribir en /var/log/mysql, usando stdout para logs"
-        su -s /bin/bash mysql -c "mysqld --datadir=/var/lib/mysql --log-error=\"\" --log-error-verbosity=2" &
+        su -s /bin/bash mysql -c "mysqld --datadir=/var/lib/mysql --console --log-error-verbosity=2" &
     fi
 else
     # Si no es root, iniciar MySQL con log a stdout
@@ -22,7 +22,7 @@ else
         mysqld --datadir=/var/lib/mysql --log-error=/var/log/mysql/error.log &
     else
         echo "⚠️  No se puede escribir en /var/log/mysql, usando stdout para logs"
-        mysqld --datadir=/var/lib/mysql --log-error="" --log-error-verbosity=2 &
+        mysqld --datadir=/var/lib/mysql --console --log-error-verbosity=2 &
     fi
 fi
 MYSQL_PID=$!
