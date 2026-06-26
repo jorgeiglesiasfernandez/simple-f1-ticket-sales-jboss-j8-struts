@@ -1,51 +1,40 @@
 # =====================================================
 # Dockerfile Monolítico - JBoss EAP 7.4 + MySQL 8.0
-# Simula aplicación legacy en RHEL8
+# Usa imagen oficial de Red Hat JBoss EAP 7.4
 # =====================================================
 
-FROM registry.access.redhat.com/ubi8/ubi:8.8
+FROM registry.redhat.io/jboss-eap-7/eap74-openjdk8-openshift-rhel8:latest
+
+USER root
 
 LABEL maintainer="F1 Tickets Team"
-LABEL description="Aplicación monolítica F1 Tickets con JBoss EAP 7.4 y MySQL 8.0 en RHEL8"
+LABEL description="Aplicación monolítica F1 Tickets con JBoss EAP 7.4 y MySQL 8.0"
 LABEL version="1.0.0"
 
 # Variables de entorno
-ENV JBOSS_HOME=/opt/jboss/wildfly \
-    MYSQL_ROOT_PASSWORD=rootpass \
+ENV MYSQL_ROOT_PASSWORD=rootpass \
     MYSQL_DATABASE=f1_tickets \
     MYSQL_USER=f1user \
-    MYSQL_PASSWORD=f1pass \
-    JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk
+    MYSQL_PASSWORD=f1pass
 
-# Instalar dependencias del sistema
+# Instalar dependencias básicas
 RUN yum install -y \
-    java-1.8.0-openjdk \
-    java-1.8.0-openjdk-devel \
     wget \
-    unzip \
-    mysql-server \
-    mysql \
-    supervisor \
+    tar \
+    python3-pip \
     procps \
     net-tools \
     && yum clean all
 
-# Crear usuario jboss
-RUN groupadd -r jboss -g 1000 && \
-    useradd -u 1000 -r -g jboss -m -d /opt/jboss -s /sbin/nologin -c "JBoss user" jboss
+# Instalar supervisor
+RUN pip3 install supervisor
 
-# Descargar e instalar WildFly (compatible con JBoss EAP 7.4)
-RUN cd /opt/jboss && \
-    wget -q https://github.com/wildfly/wildfly/releases/download/26.1.3.Final/wildfly-26.1.3.Final.tar.gz && \
-    tar xzf wildfly-26.1.3.Final.tar.gz && \
-    mv wildfly-26.1.3.Final wildfly && \
-    rm wildfly-26.1.3.Final.tar.gz && \
-    chown -R jboss:jboss /opt/jboss/wildfly
-
-# Descargar MySQL Connector/J
-RUN cd /opt/jboss && \
-    wget -q https://repo1.maven.org/maven2/mysql/mysql-connector-java/8.0.33/mysql-connector-java-8.0.33.jar && \
-    chown jboss:jboss mysql-connector-java-8.0.33.jar
+# Instalar MySQL 8.0 desde repositorio de Oracle
+RUN wget https://dev.mysql.com/get/mysql80-community-release-el8-9.noarch.rpm && \
+    rpm -ivh mysql80-community-release-el8-9.noarch.rpm && \
+    yum install -y mysql-server mysql && \
+    yum clean all && \
+    rm -f mysql80-community-release-el8-9.noarch.rpm
 
 # Configurar MySQL
 RUN mkdir -p /var/lib/mysql /var/run/mysqld /var/log/mysql && \
@@ -55,18 +44,20 @@ RUN mkdir -p /var/lib/mysql /var/run/mysqld /var/log/mysql && \
 # Inicializar base de datos MySQL
 RUN mysqld --initialize-insecure --user=mysql --datadir=/var/lib/mysql
 
+# Descargar MySQL Connector/J
+RUN cd /opt && \
+    wget -q https://repo1.maven.org/maven2/mysql/mysql-connector-java/8.0.33/mysql-connector-java-8.0.33.jar && \
+    chown jboss:root mysql-connector-java-8.0.33.jar
+
 # Copiar scripts SQL
 COPY database/schema.sql /docker-entrypoint-initdb.d/01-schema.sql
 COPY database/initial-data.sql /docker-entrypoint-initdb.d/02-initial-data.sql
 
-# Copiar configuración de JBoss
-COPY jboss-config/configure-jboss.cli /opt/jboss/configure-jboss.cli
-
 # Copiar WAR de la aplicación
-COPY target/f1-tickets.war /opt/jboss/wildfly/standalone/deployments/
+COPY target/f1-tickets.war /deployments/
 
 # Crear script de inicialización de MySQL
-RUN cat > /opt/jboss/init-mysql.sh << 'EOF'
+RUN cat > /opt/init-mysql.sh << 'EOF'
 #!/bin/bash
 set -e
 
@@ -102,44 +93,44 @@ EOSQL
 
 # Ejecutar scripts de inicialización
 echo "Ejecutando scripts de inicialización..."
-mysql -u root -p${MYSQL_ROOT_PASSWORD} < /docker-entrypoint-initdb.d/01-schema.sql
-mysql -u root -p${MYSQL_ROOT_PASSWORD} < /docker-entrypoint-initdb.d/02-initial-data.sql
+mysql -u root -p${MYSQL_ROOT_PASSWORD} ${MYSQL_DATABASE} < /docker-entrypoint-initdb.d/01-schema.sql
+mysql -u root -p${MYSQL_ROOT_PASSWORD} ${MYSQL_DATABASE} < /docker-entrypoint-initdb.d/02-initial-data.sql
 
 echo "Base de datos inicializada correctamente"
 EOF
 
-RUN chmod +x /opt/jboss/init-mysql.sh
+RUN chmod +x /opt/init-mysql.sh
 
 # Crear script de configuración de JBoss
-RUN cat > /opt/jboss/configure-jboss.sh << 'EOF'
+RUN cat > /opt/configure-jboss.sh << 'EOF'
 #!/bin/bash
 set -e
 
-echo "Iniciando JBoss en modo standalone para configuración..."
-$JBOSS_HOME/bin/standalone.sh &
+echo "Iniciando JBoss EAP en modo standalone para configuración..."
+/opt/eap/bin/standalone.sh &
 JBOSS_PID=$!
 
 # Esperar a que JBoss esté listo
-echo "Esperando a que JBoss esté listo..."
+echo "Esperando a que JBoss EAP esté listo..."
 for i in {60..0}; do
-    if $JBOSS_HOME/bin/jboss-cli.sh --connect --command=":read-attribute(name=server-state)" 2>/dev/null | grep -q "running"; then
+    if /opt/eap/bin/jboss-cli.sh --connect --command=":read-attribute(name=server-state)" 2>/dev/null | grep -q "running"; then
         break
     fi
-    echo "JBoss no está listo, esperando..."
+    echo "JBoss EAP no está listo, esperando..."
     sleep 2
 done
 
 if [ "$i" = 0 ]; then
-    echo "Error: JBoss no se inició correctamente"
+    echo "Error: JBoss EAP no se inició correctamente"
     kill $JBOSS_PID 2>/dev/null || true
     exit 1
 fi
 
-echo "JBoss iniciado, configurando datasource..."
+echo "JBoss EAP iniciado, configurando datasource..."
 
-# Instalar módulo MySQL
-$JBOSS_HOME/bin/jboss-cli.sh --connect << EOCLI
-module add --name=com.mysql --resources=/opt/jboss/mysql-connector-java-8.0.33.jar --dependencies=javax.api,javax.transaction.api
+# Instalar módulo MySQL y configurar datasource
+/opt/eap/bin/jboss-cli.sh --connect << EOCLI
+module add --name=com.mysql --resources=/opt/mysql-connector-java-8.0.33.jar --dependencies=javax.api,javax.transaction.api
 
 /subsystem=datasources/jdbc-driver=mysql:add(driver-name=mysql,driver-module-name=com.mysql,driver-class-name=com.mysql.cj.jdbc.Driver)
 
@@ -151,10 +142,10 @@ data-source add --name=F1TicketsDS --jndi-name=java:jboss/datasources/F1TicketsD
 EOCLI
 
 wait $JBOSS_PID
-echo "JBoss configurado correctamente"
+echo "JBoss EAP configurado correctamente"
 EOF
 
-RUN chmod +x /opt/jboss/configure-jboss.sh
+RUN chmod +x /opt/configure-jboss.sh
 
 # Configurar Supervisor para gestionar múltiples procesos
 RUN cat > /etc/supervisord.conf << 'EOF'
@@ -173,61 +164,61 @@ stdout_logfile=/var/log/mysql/mysql.log
 stderr_logfile=/var/log/mysql/mysql-error.log
 
 [program:jboss]
-command=/opt/jboss/wildfly/bin/standalone.sh -b 0.0.0.0 -bmanagement 0.0.0.0
+command=/opt/eap/bin/standalone.sh -b 0.0.0.0 -bmanagement 0.0.0.0
 user=jboss
 autostart=true
 autorestart=true
 priority=10
 stdout_logfile=/var/log/jboss/jboss.log
 stderr_logfile=/var/log/jboss/jboss-error.log
-environment=JAVA_HOME="/usr/lib/jvm/java-1.8.0-openjdk"
 EOF
 
 # Crear directorios de logs
 RUN mkdir -p /var/log/supervisor /var/log/mysql /var/log/jboss && \
-    chown -R jboss:jboss /var/log/jboss
+    chown -R jboss:root /var/log/jboss && \
+    chown -R mysql:mysql /var/log/mysql
 
 # Script de entrada principal
-RUN cat > /opt/jboss/entrypoint.sh << 'EOF'
+RUN cat > /opt/entrypoint.sh << 'EOF'
 #!/bin/bash
 set -e
 
 echo "=========================================="
 echo "Iniciando aplicación monolítica F1 Tickets"
-echo "JBoss EAP 7.4 + MySQL 8.0 en RHEL8"
+echo "JBoss EAP 7.4 + MySQL 8.0"
 echo "=========================================="
 
 # Verificar si es la primera ejecución
 if [ ! -f /var/lib/mysql/.initialized ]; then
     echo "Primera ejecución: Inicializando MySQL..."
-    /opt/jboss/init-mysql.sh
+    /opt/init-mysql.sh
     touch /var/lib/mysql/.initialized
     
-    echo "Configurando JBoss..."
-    /opt/jboss/configure-jboss.sh
+    echo "Configurando JBoss EAP..."
+    /opt/configure-jboss.sh
 fi
 
 echo "Iniciando servicios con Supervisor..."
-exec /usr/bin/supervisord -c /etc/supervisord.conf
+exec /usr/local/bin/supervisord -c /etc/supervisord.conf
 EOF
 
-RUN chmod +x /opt/jboss/entrypoint.sh
+RUN chmod +x /opt/entrypoint.sh
 
 # Exponer puertos
-# 8080: HTTP JBoss
-# 9990: Management Console JBoss
+# 8080: HTTP JBoss EAP
+# 9990: Management Console JBoss EAP
 # 3306: MySQL
 EXPOSE 8080 9990 3306
 
 # Volúmenes para persistencia
-VOLUME ["/var/lib/mysql", "/opt/jboss/wildfly/standalone/deployments"]
+VOLUME ["/var/lib/mysql", "/deployments"]
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
     CMD curl -f http://localhost:8080/f1-tickets/ || exit 1
 
-# Usuario y comando de inicio
-WORKDIR /opt/jboss
-ENTRYPOINT ["/opt/jboss/entrypoint.sh"]
+# Comando de inicio
+WORKDIR /opt
+ENTRYPOINT ["/opt/entrypoint.sh"]
 
 # Made with Bob
