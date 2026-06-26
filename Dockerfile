@@ -62,8 +62,8 @@ RUN mkdir -p /var/lib/mysql /var/run/mysqld /var/log/mysql && \
     chown -R mysql:mysql /var/lib/mysql /var/run/mysqld /var/log/mysql && \
     chmod 755 /var/run/mysqld
 
-# Inicializar base de datos MySQL
-RUN mysql_install_db --user=mysql --datadir=/var/lib/mysql
+# Inicializar base de datos MySQL (MySQL 8.0 se inicializa automáticamente al primer arranque)
+RUN mysqld --initialize-insecure --user=mysql --datadir=/var/lib/mysql
 
 # Copiar scripts SQL
 COPY database/schema.sql /docker-entrypoint-initdb.d/01-schema.sql
