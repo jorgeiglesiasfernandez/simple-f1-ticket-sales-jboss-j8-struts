@@ -4,6 +4,10 @@
 skip-log-error
 console
 
+# Desactivar binary log (no necesario para desarrollo y requiere permisos de escritura)
+skip-log-bin
+disable-log-bin
+
 # Configuración básica
 datadir=/var/lib/mysql
 socket=/var/run/mysqld/mysqld.sock
