@@ -2,7 +2,7 @@
 set -e
 
 echo "Iniciando MySQL..."
-mysqld --user=mysql --datadir=/var/lib/mysql &
+mysqld --user=mysql --datadir=/var/lib/mysql --log-error=/var/log/mysql/error.log &
 MYSQL_PID=$!
 
 # Esperar a que MySQL esté listo
