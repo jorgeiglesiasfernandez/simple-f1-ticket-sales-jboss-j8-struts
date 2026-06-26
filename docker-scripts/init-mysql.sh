@@ -2,11 +2,15 @@
 set -e
 
 echo "Iniciando MySQL..."
-# Asegurar permisos correctos
-chown -R mysql:mysql /var/lib/mysql /var/log/mysql /var/run/mysqld
-
-# Iniciar MySQL en background
-su -s /bin/bash mysql -c "mysqld --datadir=/var/lib/mysql --log-error=/var/log/mysql/error.log" &
+# Asegurar permisos correctos (solo si se ejecuta como root)
+if [ "$(id -u)" = "0" ]; then
+    chown -R mysql:mysql /var/lib/mysql /var/log/mysql /var/run/mysqld 2>/dev/null || true
+    # Iniciar MySQL como usuario mysql
+    su -s /bin/bash mysql -c "mysqld --datadir=/var/lib/mysql --log-error=/var/log/mysql/error.log" &
+else
+    # Si no es root, iniciar MySQL directamente
+    mysqld --datadir=/var/lib/mysql --log-error=/var/log/mysql/error.log &
+fi
 MYSQL_PID=$!
 
 # Esperar a que MySQL esté listo
@@ -35,10 +39,10 @@ GRANT ALL PRIVILEGES ON ${MYSQL_DATABASE}.* TO '${MYSQL_USER}'@'%';
 FLUSH PRIVILEGES;
 EOSQL
 
-# Ejecutar scripts de inicialización
+# Ejecutar scripts de inicialización con codificación UTF-8
 echo "Ejecutando scripts de inicialización..."
-mysql -u root -p${MYSQL_ROOT_PASSWORD} ${MYSQL_DATABASE} < /docker-entrypoint-initdb.d/01-schema.sql
-mysql -u root -p${MYSQL_ROOT_PASSWORD} ${MYSQL_DATABASE} < /docker-entrypoint-initdb.d/02-initial-data.sql
+mysql -u root -p${MYSQL_ROOT_PASSWORD} --default-character-set=utf8mb4 ${MYSQL_DATABASE} < /docker-entrypoint-initdb.d/01-schema.sql
+mysql -u root -p${MYSQL_ROOT_PASSWORD} --default-character-set=utf8mb4 ${MYSQL_DATABASE} < /docker-entrypoint-initdb.d/02-initial-data.sql
 
 echo "Base de datos inicializada correctamente"
 

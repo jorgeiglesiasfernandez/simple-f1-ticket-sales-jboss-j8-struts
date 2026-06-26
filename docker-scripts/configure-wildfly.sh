@@ -1,6 +1,18 @@
 #!/bin/bash
 set -e
 
+# Verificar que WildFly esté instalado
+if [ ! -d "${WILDFLY_HOME}" ]; then
+    echo "Error: WildFly no encontrado en ${WILDFLY_HOME}"
+    exit 1
+fi
+
+if [ ! -f "${WILDFLY_HOME}/bin/standalone.sh" ]; then
+    echo "Error: standalone.sh no encontrado en ${WILDFLY_HOME}/bin/"
+    ls -la ${WILDFLY_HOME}/bin/ || echo "Directorio bin no existe"
+    exit 1
+fi
+
 echo "Iniciando WildFly en modo standalone para configuración..."
 ${WILDFLY_HOME}/bin/standalone.sh &
 WILDFLY_PID=$!
@@ -29,7 +41,7 @@ module add --name=com.mysql --resources=/opt/mysql-connector-j-8.0.33.jar --depe
 
 /subsystem=datasources/jdbc-driver=mysql:add(driver-name=mysql,driver-module-name=com.mysql,driver-class-name=com.mysql.cj.jdbc.Driver)
 
-data-source add --name=F1TicketsDS --jndi-name=java:jboss/datasources/F1TicketsDS --driver-name=mysql --connection-url=jdbc:mysql://localhost:3306/${MYSQL_DATABASE}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true --user-name=${MYSQL_USER} --password=${MYSQL_PASSWORD} --use-ccm=true --max-pool-size=20 --min-pool-size=5 --enabled=true
+data-source add --name=F1TicketsDS --jndi-name=java:jboss/datasources/F1TicketsDS --driver-name=mysql --connection-url=jdbc:mysql://localhost:3306/${MYSQL_DATABASE}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=UTF-8 --user-name=${MYSQL_USER} --password=${MYSQL_PASSWORD} --use-ccm=true --max-pool-size=20 --min-pool-size=5 --enabled=true
 
 /subsystem=datasources/data-source=F1TicketsDS:test-connection-in-pool
 
@@ -37,6 +49,10 @@ data-source add --name=F1TicketsDS --jndi-name=java:jboss/datasources/F1TicketsD
 EOCLI
 
 wait $WILDFLY_PID
+
+# Asegurar permisos correctos para WildFly después de la configuración
+chown -R wildfly:wildfly /opt/wildfly/standalone
+
 echo "WildFly configurado correctamente"
 
 # Made with Bob

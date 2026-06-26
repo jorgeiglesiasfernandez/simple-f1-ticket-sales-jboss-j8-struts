@@ -19,7 +19,12 @@ ENV WILDFLY_VERSION=26.1.3.Final \
     MYSQL_PASSWORD=f1pass \
     JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk
 
-# Instalar dependencias básicas
+# Deshabilitar repositorios RHEL que requieren suscripción (solo para desarrollo local)
+# En CRC/OpenShift estos repositorios están disponibles automáticamente
+RUN rm -f /etc/yum.repos.d/redhat.repo && \
+    sed -i 's/enabled=1/enabled=0/g' /etc/yum/pluginconf.d/subscription-manager.conf || true
+
+# Instalar dependencias básicas desde repositorios UBI públicos
 RUN yum install -y \
     java-1.8.0-openjdk \
     java-1.8.0-openjdk-devel \
@@ -40,16 +45,16 @@ RUN wget https://dev.mysql.com/get/mysql80-community-release-el8-9.noarch.rpm &&
     yum clean all && \
     rm -f mysql80-community-release-el8-9.noarch.rpm
 
-# Crear usuario wildfly
-RUN groupadd -r wildfly -g 1000 && \
-    useradd -u 1000 -r -g wildfly -m -d /opt/wildfly -s /sbin/nologin -c "WildFly user" wildfly
-
-# Descargar e instalar WildFly
+# Descargar e instalar WildFly primero
 RUN cd /opt && \
     wget -q https://github.com/wildfly/wildfly/releases/download/${WILDFLY_VERSION}/wildfly-${WILDFLY_VERSION}.tar.gz && \
     tar xzf wildfly-${WILDFLY_VERSION}.tar.gz && \
     mv wildfly-${WILDFLY_VERSION} wildfly && \
-    rm wildfly-${WILDFLY_VERSION}.tar.gz && \
+    rm wildfly-${WILDFLY_VERSION}.tar.gz
+
+# Crear usuario wildfly después de instalar WildFly
+RUN groupadd -r wildfly -g 1000 && \
+    useradd -u 1000 -r -g wildfly -s /sbin/nologin -c "WildFly user" wildfly && \
     chown -R wildfly:wildfly /opt/wildfly
 
 # Descargar MySQL Connector/J (usar com/mysql/mysql-connector-j en lugar de mysql/mysql-connector-java)
@@ -78,8 +83,16 @@ COPY docker-scripts/configure-wildfly.sh /opt/configure-wildfly.sh
 COPY docker-scripts/supervisord.conf /etc/supervisord.conf
 COPY docker-scripts/entrypoint.sh /opt/entrypoint.sh
 
+# Copiar scripts de carga de datos y utilidades
+COPY docker-scripts/load-purchases-24.sh /opt/load-purchases-24.sh
+COPY docker-scripts/load-purchases-128.sh /opt/load-purchases-128.sh
+COPY docker-scripts/load-purchases-17.sh /opt/load-purchases-17.sh
+COPY docker-scripts/reset-database.sh /opt/reset-database.sh
+
 # Dar permisos de ejecución a los scripts
-RUN chmod +x /opt/init-mysql.sh /opt/configure-wildfly.sh /opt/entrypoint.sh
+RUN chmod +x /opt/init-mysql.sh /opt/configure-wildfly.sh /opt/entrypoint.sh \
+    /opt/load-purchases-24.sh /opt/load-purchases-128.sh /opt/load-purchases-17.sh \
+    /opt/reset-database.sh
 
 # Crear directorios de logs
 RUN mkdir -p /var/log/supervisor /var/log/mysql /var/log/wildfly && \
